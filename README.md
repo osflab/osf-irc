@@ -6,17 +6,25 @@ A simple IRC server which uses telnet as client.
 
 * PHP7.1 or more
 * The pcntl extension
+* composer
 
-## Installing and starting the server
-
-Install and start the server:
+## Installation
 
 ```bash
 git clone git@github.com:osflab/osf-irc.git
-php ./osf-irc/bin/irc-run.php
+cd osf-irc
+composer update
 ```
 
-## For each client
+## Usage
+
+**To start the server:**
+
+```
+php ./bin/irc-run.php
+```
+
+**For each client:**
 
 * In a new terminal, type `telnet <hostname> 9999` (replace `<hostname>` by yours) 
 * Enter your name + `[enter]`: a number is displayed

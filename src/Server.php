@@ -13,11 +13,9 @@ namespace Osf\Irc;
  * 
  * @author Guillaume Ponçon <guillaume.poncon@openstates.com>
  * @since 0.1 - 16 févr. 2006
+ * @version 0.1 - January 24, 2018
  */
 class Server {
-
-    // Fichier tampon des messages inter-processus
-    //const QUEUE_FILE = '/tmp/ircserver_queue.stat';
 
     // Adresse et port sur lesquels le serveur est connecté
     protected $ip; // = '127.0.0.1';
@@ -59,12 +57,6 @@ class Server {
             $msg .= " sur le port " . $this->port . ".";
             throw new Exception($msg);
         }
-//        if (file_exists(self::QUEUE_FILE)) {
-//            if (!@unlink(self::QUEUE_FILE)) {
-//                $msg = "Il y a une autre instance du serveur en cours d'éxecution.";
-//                throw new Exception($msg);
-//            }
-//        }
         $this->log("Socket attachée à " . $this->ip . ' ' . $this->port);
     }
 
@@ -75,7 +67,6 @@ class Server {
     {
         if ($this->ppid == $this->pid) {
             msg_remove_queue($this->qd);
-//            unlink(self::QUEUE_FILE);
             if ($this->sock) {
                 socket_close($this->sock);
             }
@@ -94,8 +85,6 @@ class Server {
         $this->pid = posix_getpid();
         $this->ppid = $this->pid;
 
-//        file_put_contents(self::QUEUE_FILE, '');
-//        $this->qd = msg_get_queue(ftok(self::QUEUE_FILE, 'R'), 0666);
         $this->qd = msg_get_queue('123456', 0666);
         $pid = pcntl_fork();
         if ($pid == -1) {
@@ -200,7 +189,6 @@ class Server {
 
             // Broadcast du message
             $msgPattern = $isCmd ? '* %s %s' : '%s> %s';
-//            $pseudo = $pseudo ?: (isset($pseudos[$pids[$pid]]) ? $pseudos[$pids[$pid]] : (isset($pseudos[$pid]) ? $pseudos[$pid] : '?'));
             $pseudo = $pseudo ?? $pseudos[$pids[$pid]];
             $msgData = sprintf($msgPattern, $pseudo, $msgData) . "\n" . chr(13);
             $this->log('Broadcast : [' . trim($msgData) . ']');
