@@ -1,0 +1,15 @@
+{
+    "name": "osflab/osf-irc",
+    "description": "Simple telnet IRC server",
+    "license": "AGPLv3",
+    "authors": [
+        {
+            "name": "Guillaume Ponçon",
+            "email": "guillaume.poncon@openstates.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {"Osf\\Irc\\": "src/"}
+    }
+}
