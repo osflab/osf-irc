@@ -3,7 +3,7 @@
     "type": "library",
     "description": "Simple telnet IRC server",
     "homepage": "http://www.openstates.com",
-    "license": "AGPLv3",
+    "license": "AGPL-3.0-or-later",
     "authors": [
         {
             "name": "Guillaume Ponçon",
