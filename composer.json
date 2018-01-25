@@ -17,7 +17,6 @@
     "autoload": {
         "psr-4": {"Osf\\Irc\\": "src/"}
     },
-    "minimum-stability": "dev",
     "extra": {
         "branch-alias": {
             "dev-master": "3.0.x-dev"
