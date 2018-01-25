@@ -1,6 +1,8 @@
 {
     "name": "osflab/osf-irc",
+    "type": "library",
     "description": "Simple telnet IRC server",
+    "homepage": "http://www.openstates.com",
     "license": "AGPLv3",
     "authors": [
         {
@@ -8,8 +10,12 @@
             "email": "guillaume.poncon@openstates.com"
         }
     ],
-    "require": {},
+    "require": {
+        "php": "^7.1.0",
+        "ext-pcntl": "*"
+    },
     "autoload": {
         "psr-4": {"Osf\\Irc\\": "src/"}
-    }
+    },
+    "minimum-stability": "dev"
 }
