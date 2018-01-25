@@ -38,11 +38,12 @@ class Server {
 
     /**
      * Création de la socket
+     * @param string|null $ip
      * @throws Exception
      */
-    public function __construct()
+    public function __construct(?string $ip = null)
     {
-        $this->ip = $this->ip ?? gethostname();
+        $this->ip = $ip ?? $this->ip ?? gethostname();
         if (!$this->sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP)) {
             throw new Exception("Impossible de créer une nouvelle socket !");
         }
@@ -58,6 +59,7 @@ class Server {
             throw new Exception($msg);
         }
         $this->log("Socket attachée à " . $this->ip . ' ' . $this->port);
+        $this->log("Dans un terminal tapez 'telnet " . $this->ip . ' ' . $this->port . "' pour chaque client.");
     }
 
     /**
@@ -375,7 +377,7 @@ class Server {
     /**
      * Log et affichage. 
      */
-    protected function log($txt): void
+    protected function log(string $txt): void
     {
         $prefix = $this->pid === $this->ppid ? '+' : '-';
         $date   = date('Y-m-d H:i:s');

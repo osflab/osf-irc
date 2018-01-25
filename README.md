@@ -8,7 +8,16 @@ A simple IRC server which uses telnet as client.
 * The pcntl extension
 * composer
 
+Requirements installation on debian/ubuntu:
+
+```bash
+sudo add-apt-repository -y ppa:ondrej/php
+sudo apt update -y
+sudo apt install php7.1-cli composer
+```
+
 ## Installation
+
 
 ```bash
 composer create-project --prefer-dist osflab/osf-irc osf-irc
@@ -19,8 +28,12 @@ composer create-project --prefer-dist osflab/osf-irc osf-irc
 **To start the server:**
 
 ```bash
-php ./osf-irc/bin/irc-run.php
+php ./osf-irc/bin/irc-run.php [host_or_ip]
 ```
+
+Replace `[host_or_ip]` by the address of the network device to bind. If you do 
+not specify this value, the server may bind to localhost, you will not be able 
+to use it from a remote machine.
 
 **For each client:**
 
