@@ -165,7 +165,6 @@ class Server {
                         break;
 
                     case 'quit' :
-                        $killMe = true;
                         $msgData = 'vient de nous quitter.';
                         break;
 

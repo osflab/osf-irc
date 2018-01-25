@@ -11,17 +11,15 @@ A simple IRC server which uses telnet as client.
 ## Installation
 
 ```bash
-git clone git@github.com:osflab/osf-irc.git
-cd osf-irc
-composer update
+composer create-project --prefer-dist osflab/osf-irc osf-irc
 ```
 
 ## Usage
 
 **To start the server:**
 
-```
-php ./bin/irc-run.php
+```bash
+php ./osf-irc/bin/irc-run.php
 ```
 
 **For each client:**
