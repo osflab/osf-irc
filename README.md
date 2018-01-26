@@ -1,6 +1,8 @@
 # Telnet IRC Server
 
-A simple IRC server which uses telnet as client. 
+A simple IRC server which uses telnet as client.
+
+* [Video: installation and use](https://www.youtube.com/watch?v=DPWG_JqfoI8) (fr)
 
 ## Requirements
 
