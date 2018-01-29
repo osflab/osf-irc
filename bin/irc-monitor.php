@@ -3,7 +3,7 @@
 
 /*
  * This file is part of the OpenStates Framework (osf) package.
- * (c) @author Guillaume Ponçon <guillaume.poncon@openstates.com>
+ * (c) Guillaume Ponçon <guillaume.poncon@openstates.com>
  * For the full copyright and license information, please read the LICENSE file distributed with the project.
  */
 
