@@ -9,7 +9,7 @@
 namespace Osf\Irc;
 
 /**
- * IRC simplifié via telnet
+ * Simple IRC server using telnet as client
  * 
  * @author Guillaume Ponçon <guillaume.poncon@openstates.com>
  * @since 0.1 - 16 févr. 2006
@@ -17,27 +17,27 @@ namespace Osf\Irc;
  */
 class Server {
 
-    // Adresse et port sur lesquels le serveur est connecté
+    // Port and host of the server
     protected $ip; // = '127.0.0.1';
     protected $port = 9999;
 
-    // La socket et les ressources qui pointent vers les clients
+    // Socket and resources to client
     protected $sock;
     protected $sockResources = [];
     
-    // Le pid du processus courant, du parent et des fils si on est dans les parents
+    // Pid of current, parent and childs processes
     protected $pid;
     protected $ppid = null;
     protected $pids =  [];
 
-    // Queue descriptor pour la file de communication en mémoire partagée
+    // Descriptor for shared memory communication queue
     protected $qd = null;
     
-    // Id du client en cours si on est un client
+    // Id of the current client if current instance is a client
     protected $currentId = 0;
 
     /**
-     * Création de la socket
+     * Socket creation
      * @param string|null $ip
      * @throws Exception
      */
@@ -45,25 +45,25 @@ class Server {
     {
         $this->ip = $ip ?? $this->ip ?? gethostname();
         if (!$this->sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP)) {
-            throw new Exception("Impossible de créer une nouvelle socket !");
+            throw new Exception("Unable to create a new socket!");
         }
         // socket_set_option($this->sock, SOL_SOCKET, SO_KEEPALIVE, 0);
         if (!socket_bind($this->sock, $this->ip, $this->port)) {
-            $msg  = "Impossible d'établir la connexion depuis ";
-            $msg .= $this->ip . " sur le port " . $this->port . ".";
+            $msg  = "Unable to connect from ";
+            $msg .= $this->ip . " on port " . $this->port . ".";
             throw new Exception($msg);
         }
         if (!socket_listen($this->sock, 5)) {
-            $msg  = "Impossible d'écouter depuis " . $this->ip;
-            $msg .= " sur le port " . $this->port . ".";
+            $msg  = "Unable to read from " . $this->ip;
+            $msg .= " on port " . $this->port . ".";
             throw new Exception($msg);
         }
-        $this->log("Socket attachée à " . $this->ip . ' ' . $this->port);
-        $this->log("Dans un terminal tapez 'telnet " . $this->ip . ' ' . $this->port . "' pour chaque client.");
+        $this->log("Socket attached to " . $this->ip . ' ' . $this->port);
+        $this->log("In a terminal, type 'telnet " . $this->ip . ' ' . $this->port . "' for each client.");
     }
 
     /**
-     * Nettoyages
+     * Cleaning
      */
     public function __destruct()
     {
@@ -72,14 +72,14 @@ class Server {
             if ($this->sock) {
                 socket_close($this->sock);
             }
-            $this->log("Arrêt général");
+            $this->log("Full stop");
         } else {
-            $this->log("Arrêt de " . $this->pid);
+            $this->log("Stopping " . $this->pid);
         }
     }
 
     /**
-     * Démarrage du serveur et des clients - gestionnaire de connexion / processus racine.
+     * Start server, clients and connexion manager
      * @return void
      */
     public function start(): void
@@ -90,15 +90,15 @@ class Server {
         $this->qd = msg_get_queue('123456', 0666);
         $pid = pcntl_fork();
         if ($pid == -1) {
-            throw new Exception('Impossible de créer un processus fils pour le serveur de messages.');
+            throw new Exception('Unable to create a child process for the queue server.');
         }
 
-        // Père : s'occupe de créer les clients
+        // Parent: create clients
         else if ($pid) {
             $this->manageClients();
         }
 
-        // Fils : s'occupe d'écouter les messages pour les distribuer aux clients
+        // Child: listen messages and dispatch it dispatch to clients
         else {
             $this->pid = posix_getpid();
             $this->manageMessages();
@@ -106,7 +106,7 @@ class Server {
     }
     
     /**
-     * Gère la redistribution des messages
+     * Manage message redistribution
      */
     protected function manageMessages(): void
     {
@@ -115,36 +115,36 @@ class Server {
         $msgType  = null;
         $msg      = null;
         $msgError = null;
-        $this->log("Demarrage du serveur de messages...");
+        $this->log("Starting the message server...");
         
         while (true) {
             
-            // Attente de réception d'un message et affichage des erreurs
+            // Wait for message reception and display errors
             $msg = null;
             if (!msg_receive($this->qd, $this->ppid, $msgType, 16384, $msg, true, 0, $msgError)) {
-                $this->log("[ERR] Impossible de recevoir un message : " . $msgError);
-                $this->log("[ERR] Etat : qd : $this->qd, ppid : $this->ppid, msgType : $msgType, msg : $msg.");
+                $this->log("[ERR] Unable to receive message : " . $msgError);
+                $this->log("[ERR] State : qd : $this->qd, ppid : $this->ppid, msgType : $msgType, msg : $msg.");
                 break;
             } else if ($msg === '') {
-                $this->log("[ERR] Message vide.");
+                $this->log("[ERR] Empty message.");
                 break;
             }
 
-            // Lecture et décomposition du message envoyé
-            $this->log("Reception d'un message de type [$msgType] : " . $msg);
+            // Reading and message decomposition
+            $this->log("Receiving [$msgType] type message: " . $msg);
             $matches = null;
             if (!preg_match('/^([0-9]+)\|(.*)$/', $msg, $matches)) {
-                $this->log('Syntaxe du message incorrecte !');
+                $this->log('Bad message syntax!');
                 continue;
             }
             [, $pid, $msgData] = $matches;
 
-            // Message vide : continue
+            // Empty message: continue
             if ($msgData === '') {
                 continue;
             }
             
-            // Traitement des commandes (connect, pseudo, quit, me)
+            // Commands management (connect, pseudo, quit, me)
             $isCmd = $msgData[0] == '/';
             $pseudo = null;
             if ($isCmd) {
@@ -154,20 +154,20 @@ class Server {
                 switch ($command) {
 
                     case 'connect' :
-                        $this->log('Enregistrement de ' . $arg . ' depuis ' . $pid . ' dans le tableau pids.');
+                        $this->log('Recording ' . $arg . ' from ' . $pid . ' in pids array.');
                         $pids[$pid] = (int) $arg;
-                        $msgData = 'vient de nous rejoindre.';
+                        $msgData = 'just joined us.';
                         break;
 
                     case 'pseudo' :
-                        $this->log('Enregistrement de ' . $arg . ' depuis ' . $pid . ' dans le tableau pseudos.');
+                        $this->log('Recording ' . $arg . ' from ' . $pid . ' in pseudonym array.');
                         $pseudo = trim($arg);
                         $pseudos[$pid] = $pseudo;
-                        $msgData = 'est en train de nous rejoindre sur le canal...';
+                        $msgData = 'is joining the irc channel...';
                         break;
 
                     case 'quit' :
-                        $msgData = 'vient de nous quitter.';
+                        $msgData = 'just left us.';
                         break;
 
                     case 'me' :
@@ -178,84 +178,84 @@ class Server {
                         break;
 
                     default :
-                        $this->log("Commande " . $command . " non gérée.");
+                        $this->log("Command [" . $command . "] not found.");
                         continue 2;
                 }
             }
 
-            // S'il y a personne, on continue
+            // If nobody, continue
             if (!$pids) {
                 continue;
             }
 
-            // Broadcast du message
+            // Message broadcast
             $msgPattern = $isCmd ? '* %s %s' : '%s> %s';
             $pseudo = $pseudo ?? $pseudos[$pids[$pid]];
             $msgData = sprintf($msgPattern, $pseudo, $msgData) . "\n" . chr(13);
-            $this->log('Broadcast : [' . trim($msgData) . ']');
+            $this->log('Broadcast: [' . trim($msgData) . ']');
             foreach ($pids as $clientPid) {
                 if (!msg_send($this->qd, $clientPid, $msgData, true, true, $msgError)) {
-                    $this->log("Impossible d'envoyer un message : " . $msgError);
+                    $this->log("Unable to send a message: " . $msgError);
                 }
             }
         }
     }
     
     /**
-     * Crée les clients au fur et à mesure
+     * Creates clients one by one
      * @return void
      * @throws Exception
      */
     protected function manageClients(): void
     {
-        // Attente d'un nouveau client
+        // Wait for a new client
         $this->currentId++;
-        $this->log("Serveur de connexion en écoute.");
+        $this->log("Client server is listening...");
         if (!$this->sockResources[$this->currentId] = socket_accept($this->sock)) {
-            $this->log('Tentative infructueuse de connexion avec un client.');
+            $this->log('Unsuccessful attempt to connect with a client.');
             return;
         }
         
-        // Création d'un nouveau processus pour notre client
+        // New process creation for the client
         $pid = pcntl_fork();
         if ($pid == -1) {
-            throw new Exception('Impossible de créer un processus fils pour un nouveau client.');
+            throw new Exception('Unable to create a child process for the new client.');
         }
         
-        // Père : on enregistre le pid du nouveau client dans la liste des pids et on relance l'écoute
+        // Parent: register the new client pid and restart listening loop
         else if ($pid) {
             $this->pids[$pid] = true;
             $this->log("Démarrage d'une nouvelle instance (pid : " . $pid . "), attente d'un nouveau client...");
             $this->manageClients();
         } 
         
-        // Fils : on démarre un client
+        // Child: starting a new client
         else {
             $this->pid = posix_getpid();
-            $this->log('Démarrage de la session pour le client '.$this->currentId.'.');
+            $this->log('Start a session for the new client '.$this->currentId.'.');
             $this->startClient($this->currentId);
-            $this->log('Suppression du processus du client '.$this->currentId.' (serveur : '.$this->ppid.').');
+            $this->log('Process removal for client '.$this->currentId.' (serveur : '.$this->ppid.').');
             socket_close($this->sockResources[$this->currentId]);
         }
     }
 
     /**
-     * Gère un processus client.
+     * Manage client processes.
      */
     protected function startClient(int $clientId): void
     {
-        // Message de bienvenue
-        $msg = "Bienvenue sur IrcServer !\n\n" . chr(13) . "Entrez un pseudo ou un code : ";
+        // Welcome message
+        $msg = "\nWelcome on IrcServer!\n\n" . chr(13) . "Please enter a pseudo or the key: ";
         if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-            $this->log('[ERR] Ecriture impossible sur client ' . $clientId . ' !');
+            $this->log('[ERR] Can not write to the client ' . $clientId . '!');
             return;
         }
         $rcv = '';
-        $writer = false; // Est en mode écriture, contient le pid de la fenetre cible
+        $writer = false; // Writing mode, contains target window pid
         
         while (true) {
             
-            // Lecture du message (tant qu'on à par reçu, on lit...)
+            // Reading the message
             $rcvPiece = (string) socket_read($this->sockResources[$clientId], 1024);
             if (!strlen($rcvPiece)) {
                 return;
@@ -265,107 +265,107 @@ class Server {
                 continue;
             }
             
-            $this->log('Message reçu par ' . $clientId . ' : ' . $rcv);
+            $this->log('Message received by ' . $clientId . ': ' . $rcv);
             $msg = '';
             $rcv = trim($rcv);
 
-            // Mode écriture : on interprête les ordres de la fenêtre d'écriture
+            // Write mode: execution of orders in the writing process
             if ($writer) {
                 $msgErr = null;
 
-                // Si le message demande à quitter
+                // Exit command
                 if ($rcv == '/quit' || $rcv == '/q' || $rcv == '/exit') {
 
-                    // Envoi du message d'arret au serveur de messages
+                    // Send a shutdown message to the server process
                     if (!msg_send($this->qd, $this->ppid, $this->pid . '|/quit ', true, true, $msgErr)) {
-                        $this->log("Impossible d'envoyer l'ordre d'arrêt au serveur [pid:$this->pid] [ppid:$writer]");
+                        $this->log("Unable to send shutdown message [pid:$this->pid] [ppid:$writer]");
                     }
 
-                    // Transfert un ordre d'arret au process de visu
+                    // Shutdown message to the visualisation process
                     if (!msg_send($this->qd, $writer, '/kill', true, true, $msgErr)) {
-                        $this->log("Impossible d'envoyer l'ordre d'arrêt à la fenêtre cible : " . $msgErr);
+                        $this->log("Unable to send a shutdown order to the target window: " . $msgErr);
                     }
 
-                    // Envoi d'un message d'arret à la console du client.
-                    $msg = "\n" . chr(13) . "Fenêtre inactive. Vous pouvez fermer votre terminal.\n" . chr(13);
+                    // Shutdown message for the client write window
+                    $msg = "\n" . chr(13) . "Inactive window. You can close your terminal.\n" . chr(13);
                     if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-                        $this->log("Impossible d'envoyer le message de fenêtre inactive. (writer)");
+                        $this->log("Unable to send a disabled window message. (writer)");
                     }
 
                     break;
                 }
                 
-                // Envoie le message dans la fil du serveur.
+                // Send the message to the server queue.
                 if (!msg_send($this->qd, $this->ppid, $this->pid . '|' . $rcv, true, true, $msgErr)) {
-                    $this->log("Impossible d'envoyer un message vers le serveur [pid:$this->pid] [ppid:$writer]");
+                    $this->log("Unable to send a message to the server [pid:$this->pid] [ppid:$writer]");
                 }
                 $msg = "> ";
             }
             
-            // Mode connexion : réception du PID (code)
+            // Connexion mode: receive the pid (code)
             else if (is_numeric($rcv)) {
                 $rcv = (int) $rcv;
                 $msgErr = null;
-                $msg_type = null;
+                $msgType = null;
 
-                // Si le message est une clé (pid) valide, alors envoyer un /connect my_pid|pid_cible
-                // dans la queue du serveur pour enregistrer le type $pid_cible comme receveur, puis
-                // afficher un prompt et continuer. 
+                // If the message is a valid pid, then send a /connect my_pid|target_pid in the server queue
+                // to define the target_pid as receiver. Then, display a prompt and continue.
                 if (isset($this->pids[$rcv]) && $this->pids[$rcv] === true) {
                     $writer = $rcv;
                     if (!msg_send($this->qd, $this->ppid, $this->pid . "|/connect " . $writer, true, true, $msgErr)) {
-                        $this->log("Impossible d'envoyer l'invite de connexion : " . $msgErr);
+                        $this->log("Unable to send guest login: " . $msgErr);
                     }
-                    $msg = "\nTapez vos messages ici (/quit pour quitter) : \n" . chr(13) . "\n" . chr(13) . "> ";
+                    $msg = "\nWrite your messages here (/q to quit) : \n" . chr(13) . "\n" . chr(13) . "> ";
                 } else {
-                    $msg = "Le code n'est pas le bon [$rcv].\n" . chr(13);
+                    $msg = "\nThis code is not found [$rcv]. Please retry: ";
                 }
             }
             
-            // Mode connexion : réception du pseudonyme
+            // Connexion mode: pseudonym filling
             else if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_-]{2,25}$/i', $rcv)) {
                 
                 $msg_error = null;
-                $msg = "\n    Merci, votre pseudo est " . $rcv . " !\n" . chr(13);
-                $msg .= "\nOuvrez un autre terminal et tapez le code suivant : ".$this->pid."\n".chr(13);
-                $msg .= "Ne fermez pas cette fenêtre, c'est ici que la discussion s'affiche.\n\n".chr(13);
+                $msg = "\n    Thank you, your name is " . $rcv . "!\n" . chr(13);
+                $msg .= "\nNow, open a new terminal with the same telnet command and type this key: ";
+                $msg .= $this->pid . "\n" . chr(13);
+                $msg .= "Don't close this window, it's your reading screen.\n\n" . chr(13);
 
                 if (!msg_send($this->qd, $this->ppid, $this->pid . "|/pseudo " . $rcv, true, true, $msgErr)) {
-                    $this->log("Impossible d'envoyer le pseudo : " . $msgErr);
+                    $this->log("Unable to send your pseudo: " . $msgErr);
                 }
                 if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-                    $this->log("Impossible d'envoyer le message du code au client.");
+                    $this->log("Unable to send the code message to the client.");
                     break;
                 }
                 
-                // Boucle qui attend des messages sur le pid en cours et les envoie à la socket. (fenêtre de lecture)
+                // This loop wait for messages of the current pid to send to the read window. 
                 while (true) {
-                    if (msg_receive($this->qd, $this->pid, $msg_type, 16384, $msg, true, 0, $msg_error)) {
+                    if (msg_receive($this->qd, $this->pid, $msgType, 16384, $msg, true, 0, $msg_error)) {
                         if ($msg == '/kill') {
-                            $msg = "\n" . chr(13) . "Fenêtre inactive. Vous pouvez fermer votre terminal.\n" . chr(13);
+                            $msg = "\n" . chr(13) . "Inactive window. You can close this terminal.\n" . chr(13);
                             if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-                                $this->log("Impossible d'envoyer le message de fenêtre inactive (reader).");
+                                $this->log("Unable to send the inactive window message (reader).");
                             }
                             break 2;
                         }
                         if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-                            $this->log("Erreur d'écriture sur la socket du client " . $this->pid);
+                            $this->log("Write error on client socket " . $this->pid);
                         }
                     }
                 }
 
             }
             
-            // Mode connexion : problème de syntaxe (ni un PID, ni un pseudo).
+            // Connexion mode: syntax error (this is not a PID or a pseudonym).
             else {
-                $msg = "\nLa syntaxe du pseudonyme choisi n'est pas correcte, \n" . chr(13);
-                $msg .= "ou le code n'est pas bon.\n" . chr(13);
-                $msg .= "Veuillez choisir un nom simple ou resaisissez le code.\n\n" . chr(13);
-                $msg .= "Code ou pseudonyme : ";
+                $msg = "\nYour pseudonym syntax is not correct, \n" . chr(13);
+                $msg .= "or your key is not available.\n" . chr(13);
+                $msg .= "Please choose a simple name or retry filling the numeric key.\n\n" . chr(13);
+                $msg .= "Key or pseudonym: ";
             }
             $rcv = '';
 
-            // S'il y a un message à envoyer sur la socket du client, on l'envoie
+            // Send the message to the client socket if exists
             if ($msg) {
                 if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
                     continue;
@@ -375,7 +375,7 @@ class Server {
     }
 
     /**
-     * Log et affichage. 
+     * Log and display 
      */
     protected function log(string $txt): void
     {
@@ -386,15 +386,18 @@ class Server {
     }
 
     /**
-     * Monitoring des processus
+     * Process monitoring
      * @return void
      */
     public static function startMonitor(): void
     {
         while (1) {
+            if (!function_exists('passthru')) {
+                echo 'PHP can not execute shell command.';
+                break;
+            }
             passthru('clear ; ps auxf | grep run.php | grep -v grep');
             sleep(1);
         }
     }
 }
-
