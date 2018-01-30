@@ -14,6 +14,7 @@ namespace Osf\Irc;
  * @author Guillaume Ponçon <guillaume.poncon@openstates.com>
  * @since 0.1 - 16 févr. 2006
  * @version 0.1 - January 24, 2018
+ * @todo code structure refactoring
  */
 class Server {
 
@@ -74,7 +75,7 @@ class Server {
             }
             $this->log("Full stop");
         } else {
-            $this->log("Stopping " . $this->pid);
+            $this->log("Killing " . $this->pid);
         }
     }
 
@@ -144,43 +145,11 @@ class Server {
                 continue;
             }
             
-            // Commands management (connect, pseudo, quit, me)
+            // Command management (connect, pseudo, quit, me)
             $isCmd = $msgData[0] == '/';
             $pseudo = null;
-            if ($isCmd) {
-                $matches = null;
-                preg_match('#^/([^ ]+) ? *(.*?) *$#', $msgData, $matches);
-                [, $command, $arg] = $matches;
-                switch ($command) {
-
-                    case 'connect' :
-                        $this->log('Recording ' . $arg . ' from ' . $pid . ' in pids array.');
-                        $pids[$pid] = (int) $arg;
-                        $msgData = 'just joined us.';
-                        break;
-
-                    case 'pseudo' :
-                        $this->log('Recording ' . $arg . ' from ' . $pid . ' in pseudonym array.');
-                        $pseudo = trim($arg);
-                        $pseudos[$pid] = $pseudo;
-                        $msgData = 'is joining the irc channel...';
-                        break;
-
-                    case 'quit' :
-                        $msgData = 'just left us.';
-                        break;
-
-                    case 'me' :
-                        if (!$arg) {
-                            continue 2;
-                        }
-                        $msgData = $arg;
-                        break;
-
-                    default :
-                        $this->log("Command [" . $command . "] not found.");
-                        continue 2;
-                }
+            if ($isCmd && $this->runMsgCommand($msgData, $pids, $pid, $pseudos)) {
+                continue;
             }
 
             // If nobody, continue
@@ -199,6 +168,52 @@ class Server {
                 }
             }
         }
+    }
+    
+    /**
+     * Command: connect, pseudo, quit, me...
+     * @param string $msgData
+     * @param array $pids
+     * @param int $pid
+     * @param array $pseudos
+     * @return bool continue the main loop ?
+     */
+    protected function runMsgCommand(string &$msgData, array &$pids, int $pid, array &$pseudos): bool
+    {
+        $matches = null;
+        preg_match('#^/([^ ]+) ? *(.*?) *$#', $msgData, $matches);
+        [, $command, $arg] = $matches;
+        switch ($command) {
+
+            case 'connect' :
+                $this->log('Recording ' . $arg . ' from ' . $pid . ' in pids array.');
+                $pids[$pid] = (int) $arg;
+                $msgData = 'just joined us.';
+                break;
+
+            case 'pseudo' :
+                $this->log('Recording ' . $arg . ' from ' . $pid . ' in pseudonym array.');
+                $pseudo = trim($arg);
+                $pseudos[$pid] = $pseudo;
+                $msgData = 'is joining the irc channel...';
+                break;
+
+            case 'quit' :
+                $msgData = 'just left us.';
+                break;
+
+            case 'me' :
+                if (!$arg) {
+                    return true;
+                }
+                $msgData = $arg;
+                break;
+
+            default :
+                $this->log("Command [" . $command . "] not found.");
+                return true;
+        }
+        return false;
     }
     
     /**
@@ -268,30 +283,14 @@ class Server {
             $this->log('Message received by ' . $clientId . ': ' . $rcv);
             $msg = '';
             $rcv = trim($rcv);
+            $msgErr = null;
 
             // Write mode: execution of orders in the writing process
             if ($writer) {
-                $msgErr = null;
 
                 // Exit command
                 if ($rcv == '/quit' || $rcv == '/q' || $rcv == '/exit') {
-
-                    // Send a shutdown message to the server process
-                    if (!msg_send($this->qd, $this->ppid, $this->pid . '|/quit ', true, true, $msgErr)) {
-                        $this->log("Unable to send shutdown message [pid:$this->pid] [ppid:$writer]");
-                    }
-
-                    // Shutdown message to the visualisation process
-                    if (!msg_send($this->qd, $writer, '/kill', true, true, $msgErr)) {
-                        $this->log("Unable to send a shutdown order to the target window: " . $msgErr);
-                    }
-
-                    // Shutdown message for the client write window
-                    $msg = "\n" . chr(13) . "Inactive window. You can close your terminal.\n" . chr(13);
-                    if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
-                        $this->log("Unable to send a disabled window message. (writer)");
-                    }
-
+                    $msgErr = $this->runExit($writer, $clientId);
                     break;
                 }
                 
@@ -302,23 +301,11 @@ class Server {
                 $msg = "> ";
             }
             
-            // Connexion mode: receive the pid (code)
+            // Connexion mode: receive the pid (key)
             else if (is_numeric($rcv)) {
                 $rcv = (int) $rcv;
-                $msgErr = null;
                 $msgType = null;
-
-                // If the message is a valid pid, then send a /connect my_pid|target_pid in the server queue
-                // to define the target_pid as receiver. Then, display a prompt and continue.
-                if (isset($this->pids[$rcv]) && $this->pids[$rcv] === true) {
-                    $writer = $rcv;
-                    if (!msg_send($this->qd, $this->ppid, $this->pid . "|/connect " . $writer, true, true, $msgErr)) {
-                        $this->log("Unable to send guest login: " . $msgErr);
-                    }
-                    $msg = "\nWrite your messages here (/q to quit) : \n" . chr(13) . "\n" . chr(13) . "> ";
-                } else {
-                    $msg = "\nThis code is not found [$rcv]. Please retry: ";
-                }
+                $msg = $this->getKeyQuestion($rcv, $writer);
             }
             
             // Connexion mode: pseudonym filling
@@ -374,6 +361,60 @@ class Server {
         }
     }
 
+    /**
+     * Client shutdown
+     * @param int $writer
+     * @param int $clientId
+     * @return string|null
+     */
+    protected function runExit(int $writer, int $clientId): ?string
+    {
+        // Send a shutdown message to the server process
+        $msgErr = null;
+        if (!msg_send($this->qd, $this->ppid, $this->pid . '|/quit ', true, true, $msgErr)) {
+            $this->log("Unable to send shutdown message [pid:$this->pid] [ppid:$writer]");
+        }
+
+        // Shutdown message to the visualisation process
+        if (!msg_send($this->qd, $writer, '/kill', true, true, $msgErr)) {
+            $this->log("Unable to send a shutdown order to the target window: " . $msgErr);
+        }
+
+        // Shutdown message for the client write window
+        $msg = "\n" . chr(13) . "Inactive window. You can close your terminal.\n" . chr(13);
+        if (!socket_write($this->sockResources[$clientId], $msg, strlen($msg))) {
+            $this->log("Unable to send a disabled window message. (writer)");
+        }
+        
+        return $msgErr;
+    }
+    
+    /**
+     * Get message to display (ask key or write your first message)
+     * 
+     * If the message is a valid pid, then send a /connect my_pid|target_pid in the server queue
+     * to define the target_pid as receiver. Then, display a prompt and continue.
+     * 
+     * @param int $rcv
+     * @param string $writer
+     * @return string
+     */
+    protected function getKeyQuestion(int $rcv, string &$writer): string
+    {
+        $msgErr = null;
+        if (isset($this->pids[$rcv]) && $this->pids[$rcv] === true) {
+            $writer = $rcv;
+            if (!msg_send($this->qd, $this->ppid, $this->pid . "|/connect " . $writer, true, true, $msgErr)) {
+                $this->log("Unable to send guest login: " . $msgErr);
+            }
+            $msg = "\nWrite your messages here (/q to quit) : \n" . chr(13) . "\n" . chr(13) . "> ";
+        } else {
+            $msg = "\nThis key is not found [$rcv]. Please retry: ";
+        }
+        
+        return $msg;
+    }
+    
     /**
      * Log and display 
      */
